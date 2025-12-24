@@ -22,11 +22,11 @@ jax.config.update(
     "jax_persistent_cache_enable_xla_caches", "xla_gpu_per_fusion_autotune_cache_dir"
 )
 
-VERSION = "v1"
+VERSION = "v2"
 LR = 0.001
 B1 = 0.9
 B2 = 0.999
-TIME_STEPS = 32
+TIME_STEPS = 64
 BATCH_SIZE = 256
 EPOCHS = 50
 CLUSTER_INDEX = 0
@@ -148,7 +148,10 @@ def train(model: Model, tr, train_batches, val_batches, num_epochs: int):
     optimizer = nnx.ModelAndOptimizer(model, tr, wrt=nnx.Param)
     checkpointer = ocp.StandardCheckpointer()
 
-    if os.listdir(ckpt_dir) != [] and os.listdir(ckpt_dir / f"state_{VERSION}") != []:
+    if (
+        f"state_{VERSION}" in os.listdir(ckpt_dir)
+        and os.listdir(ckpt_dir / f"state_{VERSION}") != []
+    ):
         abstract_model = nnx.eval_shape(
             lambda: Model(ModelConfig(df.shape[1], 2), rngs=nnx.Rngs(0))
         )
