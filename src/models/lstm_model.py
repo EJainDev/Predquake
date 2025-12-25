@@ -22,12 +22,12 @@ jax.config.update(
     "jax_persistent_cache_enable_xla_caches", "xla_gpu_per_fusion_autotune_cache_dir"
 )
 
-VERSION = "v2"
+VERSION = "v3"
 LR = 0.001
 B1 = 0.9
 B2 = 0.999
-TIME_STEPS = 64
-BATCH_SIZE = 256
+TIME_STEPS = 32
+BATCH_SIZE = 32
 EPOCHS = 50
 CLUSTER_INDEX = 0
 ckpt_dir = CHECKPOINT_DIR
