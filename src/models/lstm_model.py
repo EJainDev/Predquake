@@ -22,7 +22,7 @@ jax.config.update(
     "jax_persistent_cache_enable_xla_caches", "xla_gpu_per_fusion_autotune_cache_dir"
 )
 
-VERSION = "v3"
+VERSION = "v4"
 LR = 0.001
 B1 = 0.9
 B2 = 0.999
@@ -34,9 +34,9 @@ ckpt_dir = CHECKPOINT_DIR
 
 
 class ModelConfig:
-    LSTM_HIDDEN_SIZE = 16
+    LSTM_HIDDEN_SIZE = 32
     LSTM_NUM_LAYERS = 1
-    HIDDEN_SIZES = []
+    HIDDEN_SIZES = [32]
     INPUT_FEATURES = 0
     OUTPUT_FEATURES = 0
 
