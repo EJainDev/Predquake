@@ -22,10 +22,11 @@ jax.config.update(
     "jax_persistent_cache_enable_xla_caches", "xla_gpu_per_fusion_autotune_cache_dir"
 )
 
-VERSION = "v5"
+VERSION = "v6"
 LR = 0.001
 B1 = 0.9
 B2 = 0.999
+WEIGHT_DECAY = 1e-4
 TIME_STEPS = 32
 BATCH_SIZE = 32
 EPOCHS = 50
@@ -50,7 +51,7 @@ class Model(nnx.Module):
         self.lstm_cell = LSTMCell(
             config.INPUT_FEATURES, config.LSTM_HIDDEN_SIZE, rngs=rngs
         )
-        hidden_layers = []
+        hidden_layers: list = []
         for i, hs in enumerate(config.HIDDEN_SIZES):
             in_features = (
                 config.LSTM_HIDDEN_SIZE if i == 0 else config.HIDDEN_SIZES[i - 1]
@@ -71,9 +72,9 @@ class Model(nnx.Module):
         )
 
     @nnx.jit
-    def __call__(self, x):
+    def __call__(self, x: jax.Array) -> jax.Array:
         batch_size, seq_len, num_features = x.shape
-        carry = self.lstm_cell.initialize_carry(
+        carry: tuple[jax.Array, jax.Array] = self.lstm_cell.initialize_carry(
             (batch_size, num_features), rngs=nnx.Rngs(0)
         )
 
@@ -85,27 +86,33 @@ class Model(nnx.Module):
         x = scan_fn(carry, x)
         x = x[1][:, -1, :]
         x = self.hidden_layers(x)
-        y = self.output_layer(x)
+        y: jax.Array = self.output_layer(x)
         return y
 
 
 def create_batch(
-    data_X, data_y, start_idx: int, time_steps: int, batch_size: int
-) -> tuple:
+    data_X: jax.Array,
+    data_y: jax.Array,
+    start_idx: int,
+    time_steps: int,
+    batch_size: int,
+) -> tuple[jax.Array, jax.Array]:
     # Use vectorized indexing instead of list comprehension
-    indices = jnp.arange(batch_size)[:, None] + start_idx
+    indices: jax.Array = jnp.arange(batch_size)[:, None] + start_idx
     indices = jnp.arange(time_steps)[None, :] + indices
-    batch_X = jnp.take(data_X, indices.ravel(), axis=0).reshape(
+    batch_X: jax.Array = jnp.take(data_X, indices.ravel(), axis=0).reshape(
         batch_size, time_steps, -1
     )
-    batch_y = data_y[start_idx : start_idx + batch_size]
+    batch_y: jax.Array = data_y[start_idx : start_idx + batch_size]
     return batch_X, batch_y
 
 
-def preload_batches(train_X, train_y, time_steps: int, batch_size: int):
-    num_train_datapoints = train_X.shape[0] - time_steps
-    num_train_batches = num_train_datapoints // batch_size
-    batches: list[tuple] = []
+def preload_batches(
+    train_X: jax.Array, train_y: jax.Array, time_steps: int, batch_size: int
+):
+    num_train_datapoints: int = train_X.shape[0] - time_steps
+    num_train_batches: int = num_train_datapoints // batch_size
+    batches: list[tuple[jax.Array, jax.Array]] = []
     for i in range(num_train_batches):
         batches.append(
             create_batch(train_X, train_y, i * batch_size, time_steps, batch_size)
@@ -114,13 +121,15 @@ def preload_batches(train_X, train_y, time_steps: int, batch_size: int):
 
 
 @nnx.jit(donate_argnames=("model"))
-def loss_fn(model, inputs, targets):
+def loss_fn(model: Model, inputs: jax.Array, targets: jax.Array) -> jax.Array:
     return jnp.mean((model(inputs) - targets) ** 2)
 
 
 @nnx.jit(donate_argnames=("optimizer"))
-def train_step(optimizer: nnx.ModelAndOptimizer, batch_X, batch_y):
-    def loss_and_grads(model):
+def train_step(
+    optimizer: nnx.ModelAndOptimizer, batch_X: jax.Array, batch_y: jax.Array
+) -> float:
+    def loss_and_grads(model: Model) -> jax.Array:
         return loss_fn(model, batch_X, batch_y)
 
     loss, grads = nnx.value_and_grad(loss_and_grads)(optimizer.model)
@@ -129,22 +138,28 @@ def train_step(optimizer: nnx.ModelAndOptimizer, batch_X, batch_y):
 
 
 @nnx.jit(donate_argnames=("model"))
-def _validation_step(model: Model, batch_X, batch_y):
-    preds = model(batch_X)
-    loss = jnp.mean((preds - batch_y) ** 2)
+def _validation_step(model: Model, batch_X: jax.Array, batch_y: jax.Array) -> jax.Array:
+    preds: jax.Array = model(batch_X)
+    loss: jax.Array = jnp.mean((preds - batch_y) ** 2)
     return loss
 
 
-def validate(model: Model, val_batches: list[tuple]):
-    val_loss = 0.0
+def validate(model: Model, val_batches: list[tuple[jax.Array, jax.Array]]) -> float:
+    val_loss: float = 0.0
     model.eval()
     for batch_X, batch_y in val_batches:
-        val_loss += _validation_step(model, batch_X, batch_y)
+        val_loss += _validation_step(model, batch_X, batch_y).item(0)
     val_loss /= len(val_batches)
     return val_loss
 
 
-def train(model: Model, tr, train_batches, val_batches, num_epochs: int):
+def train(
+    model: Model,
+    tr: optax.GradientTransformation,
+    train_batches: list[tuple[jax.Array, jax.Array]],
+    val_batches: list[tuple[jax.Array, jax.Array]],
+    num_epochs: int,
+):
     optimizer = nnx.ModelAndOptimizer(model, tr, wrt=nnx.Param)
     checkpointer = ocp.StandardCheckpointer()
 
@@ -163,14 +178,14 @@ def train(model: Model, tr, train_batches, val_batches, num_epochs: int):
         model = nnx.merge(graphdef, state_restored)
 
     for epoch in range(num_epochs):
-        train_loss = 0.0
+        train_loss: float = 0.0
         model.train()
         for batch_X, batch_y in train_batches:
             loss = train_step(optimizer, batch_X, batch_y)
             train_loss += loss
         train_loss /= len(train_batches)
 
-        val_loss = validate(model, val_batches)
+        val_loss: float = validate(model, val_batches)
         print(f"Epoch {epoch}, Train Loss: {train_loss}, Validation Loss: {val_loss}")
 
         _, state = nnx.split(model)
@@ -178,8 +193,8 @@ def train(model: Model, tr, train_batches, val_batches, num_epochs: int):
 
 
 if __name__ == "__main__":
-    index = jnp.load(CLUSTER_INDEX_PATH)
-    df = pl.read_csv(
+    index: jax.Array = jnp.load(CLUSTER_INDEX_PATH)
+    df: pl.DataFrame = pl.read_csv(
         PROCESSED_DATA_FILE_PATH,
         schema={
             "mag": pl.Float64,
@@ -212,7 +227,7 @@ if __name__ == "__main__":
     ][1 + TIME_STEPS :]
 
     model = Model(ModelConfig(train_X.shape[1], train_y.shape[1]), rngs=nnx.Rngs(0))
-    tx = optax.adam(learning_rate=LR, b1=B1, b2=B2)
+    tx = optax.adamw(learning_rate=LR, b1=B1, b2=B2, weight_decay=WEIGHT_DECAY)
 
     train(
         model,
