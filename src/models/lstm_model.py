@@ -22,7 +22,7 @@ jax.config.update(
     "jax_persistent_cache_enable_xla_caches", "xla_gpu_per_fusion_autotune_cache_dir"
 )
 
-VERSION = "v4"
+VERSION = "v5"
 LR = 0.001
 B1 = 0.9
 B2 = 0.999
@@ -34,9 +34,9 @@ ckpt_dir = CHECKPOINT_DIR
 
 
 class ModelConfig:
-    LSTM_HIDDEN_SIZE = 32
+    LSTM_HIDDEN_SIZE = 16
     LSTM_NUM_LAYERS = 1
-    HIDDEN_SIZES = [32]
+    HIDDEN_SIZES = []
     INPUT_FEATURES = 0
     OUTPUT_FEATURES = 0
 
@@ -198,7 +198,7 @@ if __name__ == "__main__":
     temp_df = df.slice(0, df.shape[0] - sum(VAL_TEST_SPLITS))
     train_X = jnp.array(scaler.transform(temp_df.to_numpy()))[
         index[0 : df.shape[0] - sum(VAL_TEST_SPLITS)] == CLUSTER_INDEX
-    ][:-1]
+    ][:-1, [0, 2, 3, 4, 6, 7]]
     train_y = jnp.array(temp_df.select("latitude", "longitude").to_numpy())[
         index[0 : df.shape[0] - sum(VAL_TEST_SPLITS)] == CLUSTER_INDEX
     ][1 + TIME_STEPS :]
@@ -206,12 +206,12 @@ if __name__ == "__main__":
     temp_df = df.slice(-sum(VAL_TEST_SPLITS), VAL_TEST_SPLITS[0])
     val_X = jnp.array(scaler.transform(temp_df.to_numpy()))[
         index[-sum(VAL_TEST_SPLITS) : -VAL_TEST_SPLITS[1]] == CLUSTER_INDEX
-    ][:-1]
+    ][:-1, [0, 2, 3, 4, 6, 7]]
     val_y = jnp.array(temp_df.select("latitude", "longitude").to_numpy())[
         index[-sum(VAL_TEST_SPLITS) : -VAL_TEST_SPLITS[1]] == CLUSTER_INDEX
     ][1 + TIME_STEPS :]
 
-    model = Model(ModelConfig(df.shape[1], 2), rngs=nnx.Rngs(0))
+    model = Model(ModelConfig(train_X.shape[1], train_y.shape[1]), rngs=nnx.Rngs(0))
     tx = optax.adam(learning_rate=LR, b1=B1, b2=B2)
 
     train(
