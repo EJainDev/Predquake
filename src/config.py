@@ -10,7 +10,7 @@ RAW_DATA_FILE_PATH = RAW_DATA_DIR / "Earthquakes_USGS.csv"
 PROCESSED_DATA_FILE_PATH = PROCESSED_DATA_DIR / "data.csv"
 SCALER_PATH = PROCESSED_DATA_DIR / "scaler.pkl"
 
-VAL_TEST_SPLITS = (50_000, 50_000)  # Number of samples for validation and test sets
+VAL_TEST_SPLITS = (10_000, 10_000)  # Number of samples for validation and test sets
 
 CLUSTERING_MODEL_PATH = ROOT_DIR / "models" / "k_means_model.npy"
 CLUSTER_INDEX_PATH = ROOT_DIR / "models" / "k_means_cluster_indexes.npy"
