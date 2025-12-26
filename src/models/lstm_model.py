@@ -26,7 +26,6 @@ VERSION = "v7"
 LR = 0.001
 B1 = 0.9
 B2 = 0.999
-WEIGHT_DECAY = 1e-4
 TIME_STEPS = 32
 BATCH_SIZE = 32
 EPOCHS = 50
@@ -227,7 +226,7 @@ if __name__ == "__main__":
     ][1 + TIME_STEPS :]
 
     model = Model(ModelConfig(train_X.shape[1], train_y.shape[1]), rngs=nnx.Rngs(0))
-    tx = optax.adamw(learning_rate=LR, b1=B1, b2=B2, weight_decay=WEIGHT_DECAY)
+    tx = optax.adam(learning_rate=LR, b1=B1, b2=B2)
 
     train(
         model,
