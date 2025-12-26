@@ -80,12 +80,12 @@ if __name__ == "__main__":
         PROCESSED_DATA_FILE_PATH,
         schema={
             "mag": pl.Float64,
-            "time": pl.Float64,
             "tsunami": pl.Float64,
             "sig": pl.Float64,
             "rms": pl.Float64,
-            "longitude": pl.Float64,
-            "latitude": pl.Float64,
+            "x": pl.Float64,
+            "y": pl.Float64,
+            "z": pl.Float64,
             "depth": pl.Float64,
         },
     )
