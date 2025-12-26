@@ -20,7 +20,7 @@ jax.config.update(
     "jax_persistent_cache_enable_xla_caches", "xla_gpu_per_fusion_autotune_cache_dir"
 )
 
-VERSION = "v11"
+VERSION = "v12"
 LR = 0.001
 B1 = 0.9
 B2 = 0.999
@@ -186,8 +186,8 @@ if __name__ == "__main__":
     checkpointer = ocp.StandardCheckpointer()
 
     if (
-        f"state_v10" in os.listdir(ckpt_dir)
-        and os.listdir(ckpt_dir / f"state_v10") != []
+        f"state_{VERSION}" in os.listdir(ckpt_dir)
+        and os.listdir(ckpt_dir / f"state_{VERSION}") != []
     ):
         # Get model config from saved state
         input_features = model.lstm_cell.in_features
@@ -198,7 +198,9 @@ if __name__ == "__main__":
             )
         )
         graphdef, abstract_state = nnx.split(abstract_model)
-        state_restored = checkpointer.restore(ckpt_dir / f"state_v10", abstract_state)
+        state_restored = checkpointer.restore(
+            ckpt_dir / f"state_{VERSION}", abstract_state
+        )
         model = nnx.merge(graphdef, state_restored)
         optimizer = nnx.ModelAndOptimizer(model, tx)
         print("Loaded model from disk")
