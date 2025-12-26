@@ -104,7 +104,6 @@ if __name__ == "__main__":
             pd.DataFrame(scaler.transform(pd_df.to_numpy()), columns=pd_df.columns)
         )
         .select("x", "y", "z")
-        .slice(0, df.shape[0] - sum(VAL_TEST_SPLITS))
         .to_numpy()
     )
 

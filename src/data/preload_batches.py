@@ -8,6 +8,7 @@ from functools import partial
 from sklearn.preprocessing import StandardScaler
 
 from src.config import *
+from src.models.k_means_clustering import assign_clusters
 
 jax.config.update("jax_compilation_cache_dir", "/tmp/jax_cache")
 jax.config.update("jax_persistent_cache_min_entry_size_bytes", -1)
@@ -78,8 +79,7 @@ def prepare_and_save_batches(
     # Pre-compute commonly used values
     total_val_test = sum(VAL_TEST_SPLITS)
     train_end = df.shape[0] - total_val_test
-    val_start = -total_val_test
-    val_end = -VAL_TEST_SPLITS[1]
+    val_start = train_end
 
     # Slice dataframes once
     train_df = df.slice(0, train_end)
@@ -92,14 +92,24 @@ def prepare_and_save_batches(
     val_xyz = jnp.array(val_df.select("x", "y", "z").to_numpy())
 
     # Pre-slice index arrays
-    train_index = index[0:train_end]
-    val_index = index[val_start:val_end]
+    train_index = index
+    val_index = assign_clusters(
+        val_scaled[
+            :,
+            [
+                val_df.columns.index("x"),
+                val_df.columns.index("y"),
+                val_df.columns.index("z"),
+            ],
+        ],
+        centroids,
+    )
 
     print("Creating batches for all clusters...")
     train_batches = []
     val_batches = []
     for cluster in range(centroids.shape[0]):
-        print(f"  Processing cluster {cluster}/{centroids.shape[0]}")
+        print(f"  Processing cluster {cluster + 1}/{centroids.shape[0]}")
         # Use pre-computed data with boolean indexing
         train_mask = train_index == cluster
         train_X = train_scaled[train_mask][:-1]
