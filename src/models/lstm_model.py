@@ -22,7 +22,7 @@ jax.config.update(
     "jax_persistent_cache_enable_xla_caches", "xla_gpu_per_fusion_autotune_cache_dir"
 )
 
-VERSION = "v6"
+VERSION = "v7"
 LR = 0.001
 B1 = 0.9
 B2 = 0.999
@@ -213,16 +213,16 @@ if __name__ == "__main__":
     temp_df = df.slice(0, df.shape[0] - sum(VAL_TEST_SPLITS))
     train_X = jnp.array(scaler.transform(temp_df.to_numpy()))[
         index[0 : df.shape[0] - sum(VAL_TEST_SPLITS)] == CLUSTER_INDEX
-    ][:-1, [0, 2, 3, 4, 6, 7]]
-    train_y = jnp.array(temp_df.select("latitude", "longitude").to_numpy())[
+    ][:-1]
+    train_y = jnp.array(temp_df.select("x", "y", "z").to_numpy())[
         index[0 : df.shape[0] - sum(VAL_TEST_SPLITS)] == CLUSTER_INDEX
     ][1 + TIME_STEPS :]
 
     temp_df = df.slice(-sum(VAL_TEST_SPLITS), VAL_TEST_SPLITS[0])
     val_X = jnp.array(scaler.transform(temp_df.to_numpy()))[
         index[-sum(VAL_TEST_SPLITS) : -VAL_TEST_SPLITS[1]] == CLUSTER_INDEX
-    ][:-1, [0, 2, 3, 4, 6, 7]]
-    val_y = jnp.array(temp_df.select("latitude", "longitude").to_numpy())[
+    ][:-1]
+    val_y = jnp.array(temp_df.select("x", "y", "z").to_numpy())[
         index[-sum(VAL_TEST_SPLITS) : -VAL_TEST_SPLITS[1]] == CLUSTER_INDEX
     ][1 + TIME_STEPS :]
 

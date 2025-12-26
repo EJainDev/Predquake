@@ -104,7 +104,7 @@ if __name__ == "__main__":
         pl.from_pandas(
             pd.DataFrame(scaler.transform(pd_df.to_numpy()), columns=pd_df.columns)
         )
-        .select("latitude", "longitude")
+        .select("x", "y", "z")
         .to_numpy()
     )
 
