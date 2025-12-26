@@ -81,7 +81,6 @@ if __name__ == "__main__":
         schema={
             "mag": pl.Float64,
             "tsunami": pl.Float64,
-            "sig": pl.Float64,
             "rms": pl.Float64,
             "x": pl.Float64,
             "y": pl.Float64,

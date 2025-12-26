@@ -197,12 +197,11 @@ if __name__ == "__main__":
         PROCESSED_DATA_FILE_PATH,
         schema={
             "mag": pl.Float64,
-            "time": pl.Float64,
             "tsunami": pl.Float64,
-            "sig": pl.Float64,
             "rms": pl.Float64,
-            "longitude": pl.Float64,
-            "latitude": pl.Float64,
+            "x": pl.Float64,
+            "y": pl.Float64,
+            "z": pl.Float64,
             "depth": pl.Float64,
         },
     )
@@ -227,6 +226,12 @@ if __name__ == "__main__":
 
     model = Model(ModelConfig(train_X.shape[1], train_y.shape[1]), rngs=nnx.Rngs(0))
     tx = optax.adam(learning_rate=LR, b1=B1, b2=B2)
+
+    for column in temp_df.columns:
+        print(
+            f"{column}: Train {jnp.mean(train_X[:, temp_df.columns.index(column)]).item()} vs validation {jnp.mean(val_X[:, temp_df.columns.index(column)]).item()}"
+        )
+    quit()
 
     train(
         model,

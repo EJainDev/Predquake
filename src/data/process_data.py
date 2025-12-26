@@ -31,6 +31,7 @@ df = (
             "updated",
             "place",
             "magType",
+            "sig",
         ]
     )
     .filter(
