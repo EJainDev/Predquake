@@ -6,12 +6,9 @@ import joblib
 import numpy as np
 import optax
 import orbax.checkpoint as ocp
-import polars as pl
 
 from flax import nnx
 from flax.nnx import LSTMCell, Linear, Sequential, leaky_relu
-
-from sklearn.preprocessing import StandardScaler
 
 from src.config import *
 
@@ -22,12 +19,10 @@ jax.config.update(
     "jax_persistent_cache_enable_xla_caches", "xla_gpu_per_fusion_autotune_cache_dir"
 )
 
-VERSION = "v7"
+VERSION = "v8"
 LR = 0.001
 B1 = 0.9
 B2 = 0.999
-TIME_STEPS = 32
-BATCH_SIZE = 32
 EPOCHS = 50
 CLUSTER_INDEX = 0
 ckpt_dir = CHECKPOINT_DIR
@@ -166,8 +161,13 @@ def train(
         f"state_{VERSION}" in os.listdir(ckpt_dir)
         and os.listdir(ckpt_dir / f"state_{VERSION}") != []
     ):
+        # Get model config from saved state
+        input_features = model.lstm_cell.in_features
+        output_features = model.output_layer.out_features
         abstract_model = nnx.eval_shape(
-            lambda: Model(ModelConfig(df.shape[1], 2), rngs=nnx.Rngs(0))
+            lambda: Model(
+                ModelConfig(input_features, output_features), rngs=nnx.Rngs(0)
+            )
         )
         graphdef, abstract_state = nnx.split(abstract_model)
         state_restored = checkpointer.restore(
@@ -192,45 +192,30 @@ def train(
 
 
 if __name__ == "__main__":
-    index: jax.Array = jnp.load(CLUSTER_INDEX_PATH)
-    df: pl.DataFrame = pl.read_csv(
-        PROCESSED_DATA_FILE_PATH,
-        schema={
-            "mag": pl.Float64,
-            "tsunami": pl.Float64,
-            "rms": pl.Float64,
-            "x": pl.Float64,
-            "y": pl.Float64,
-            "z": pl.Float64,
-            "depth": pl.Float64,
-        },
+    batches_path = PROCESSED_DATA_DIR / "preloaded_batches.pkl"
+
+    if not batches_path.exists():
+        print(f"Precomputed batches not found at {batches_path}")
+        print("Please run: python -m src.data.preload_batches")
+        exit(1)
+
+    batch_data = joblib.load(batches_path)
+    train_batches = batch_data["train_batches"]
+    val_batches = batch_data["val_batches"]
+    input_features = batch_data["input_features"]
+    output_features = batch_data["output_features"]
+
+    print(
+        f"Loaded {len(train_batches)} train batches and {len(val_batches)} validation batches"
     )
 
-    scaler: StandardScaler = joblib.load(SCALER_PATH)
-
-    temp_df = df.slice(0, df.shape[0] - sum(VAL_TEST_SPLITS))
-    train_X = jnp.array(scaler.transform(temp_df.to_numpy()))[
-        index[0 : df.shape[0] - sum(VAL_TEST_SPLITS)] == CLUSTER_INDEX
-    ][:-1]
-    train_y = jnp.array(temp_df.select("x", "y", "z").to_numpy())[
-        index[0 : df.shape[0] - sum(VAL_TEST_SPLITS)] == CLUSTER_INDEX
-    ][1 + TIME_STEPS :]
-
-    temp_df = df.slice(-sum(VAL_TEST_SPLITS), VAL_TEST_SPLITS[0])
-    val_X = jnp.array(scaler.transform(temp_df.to_numpy()))[
-        index[-sum(VAL_TEST_SPLITS) : -VAL_TEST_SPLITS[1]] == CLUSTER_INDEX
-    ][:-1]
-    val_y = jnp.array(temp_df.select("x", "y", "z").to_numpy())[
-        index[-sum(VAL_TEST_SPLITS) : -VAL_TEST_SPLITS[1]] == CLUSTER_INDEX
-    ][1 + TIME_STEPS :]
-
-    model = Model(ModelConfig(train_X.shape[1], train_y.shape[1]), rngs=nnx.Rngs(0))
+    model = Model(ModelConfig(input_features, output_features), rngs=nnx.Rngs(0))
     tx = optax.adam(learning_rate=LR, b1=B1, b2=B2)
 
     train(
         model,
         tx,
-        preload_batches(train_X, train_y, TIME_STEPS, BATCH_SIZE),
-        preload_batches(val_X, val_y, TIME_STEPS, BATCH_SIZE),
+        train_batches,
+        val_batches,
         num_epochs=EPOCHS,
     )
