@@ -19,7 +19,7 @@ jax.config.update(
     "jax_persistent_cache_enable_xla_caches", "xla_gpu_per_fusion_autotune_cache_dir"
 )
 
-VERSION = "v8"
+VERSION = "v9"
 LR = 0.001
 B1 = 0.9
 B2 = 0.999
