@@ -1,4 +1,5 @@
 import os
+from time import sleep
 
 import jax
 import jax.numpy as jnp
@@ -19,7 +20,7 @@ jax.config.update(
     "jax_persistent_cache_enable_xla_caches", "xla_gpu_per_fusion_autotune_cache_dir"
 )
 
-VERSION = "v9"
+VERSION = "v10"
 LR = 0.001
 B1 = 0.9
 B2 = 0.999
@@ -29,9 +30,9 @@ ckpt_dir = CHECKPOINT_DIR
 
 
 class ModelConfig:
-    LSTM_HIDDEN_SIZE = 16
+    LSTM_HIDDEN_SIZE = 32
     LSTM_NUM_LAYERS = 1
-    HIDDEN_SIZES = []
+    HIDDEN_SIZES = [32, 16]
     INPUT_FEATURES = 0
     OUTPUT_FEATURES = 0
 
@@ -175,6 +176,7 @@ def train(
         )
         jax.tree.map(np.testing.assert_array_equal, optimizer, state_restored)
         model = nnx.merge(graphdef, state_restored)
+        print("Loaded model from disk")
 
     for epoch in range(num_epochs):
         train_loss: float = 0.0
@@ -219,3 +221,6 @@ if __name__ == "__main__":
         val_batches,
         num_epochs=EPOCHS,
     )
+
+    print("Waiting for 2 minutes before exiting to ensure checkpoint is saved...")
+    sleep(120)  # To ensure that the checkpoint is saved before the program exits
