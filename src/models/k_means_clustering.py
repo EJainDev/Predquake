@@ -16,7 +16,7 @@ from sklearn.preprocessing import StandardScaler
 
 from src.config import *
 
-NUM_CLUSTERS = 7
+NUM_CLUSTERS = 15
 EPOCHS = 100
 
 

@@ -20,7 +20,7 @@ jax.config.update(
     "jax_persistent_cache_enable_xla_caches", "xla_gpu_per_fusion_autotune_cache_dir"
 )
 
-VERSION = "v10"
+VERSION = "v11"
 LR = 0.001
 B1 = 0.9
 B2 = 0.999
@@ -150,34 +150,12 @@ def validate(model: Model, val_batches: list[tuple[jax.Array, jax.Array]]) -> fl
 
 def train(
     model: Model,
-    tr: optax.GradientTransformation,
+    optimizer: nnx.ModelAndOptimizer,
+    checkpointer: ocp.StandardCheckpointer,
     train_batches: list[tuple[jax.Array, jax.Array]],
     val_batches: list[tuple[jax.Array, jax.Array]],
     num_epochs: int,
 ):
-    optimizer = nnx.ModelAndOptimizer(model, tr, wrt=nnx.Param)
-    checkpointer = ocp.StandardCheckpointer()
-
-    if (
-        f"state_{VERSION}" in os.listdir(ckpt_dir)
-        and os.listdir(ckpt_dir / f"state_{VERSION}") != []
-    ):
-        # Get model config from saved state
-        input_features = model.lstm_cell.in_features
-        output_features = model.output_layer.out_features
-        abstract_model = nnx.eval_shape(
-            lambda: Model(
-                ModelConfig(input_features, output_features), rngs=nnx.Rngs(0)
-            )
-        )
-        graphdef, abstract_state = nnx.split(abstract_model)
-        state_restored = checkpointer.restore(
-            ckpt_dir / f"state_{VERSION}", abstract_state
-        )
-        jax.tree.map(np.testing.assert_array_equal, optimizer, state_restored)
-        model = nnx.merge(graphdef, state_restored)
-        print("Loaded model from disk")
-
     for epoch in range(num_epochs):
         train_loss: float = 0.0
         model.train()
@@ -201,6 +179,30 @@ if __name__ == "__main__":
         print("Please run: python -m src.data.preload_batches")
         exit(1)
 
+    model = Model(ModelConfig(7, 3), rngs=nnx.Rngs(0))
+    tx = optax.adam(learning_rate=LR, b1=B1, b2=B2)
+
+    optimizer = nnx.ModelAndOptimizer(model, tx)
+    checkpointer = ocp.StandardCheckpointer()
+
+    if (
+        f"state_v10" in os.listdir(ckpt_dir)
+        and os.listdir(ckpt_dir / f"state_v10") != []
+    ):
+        # Get model config from saved state
+        input_features = model.lstm_cell.in_features
+        output_features = model.output_layer.out_features
+        abstract_model = nnx.eval_shape(
+            lambda: Model(
+                ModelConfig(input_features, output_features), rngs=nnx.Rngs(0)
+            )
+        )
+        graphdef, abstract_state = nnx.split(abstract_model)
+        state_restored = checkpointer.restore(ckpt_dir / f"state_v10", abstract_state)
+        model = nnx.merge(graphdef, state_restored)
+        optimizer = nnx.ModelAndOptimizer(model, tx)
+        print("Loaded model from disk")
+
     batch_data = joblib.load(batches_path)
     train_batches = batch_data["train_batches"]
     val_batches = batch_data["val_batches"]
@@ -211,12 +213,10 @@ if __name__ == "__main__":
         f"Loaded {len(train_batches)} train batches and {len(val_batches)} validation batches"
     )
 
-    model = Model(ModelConfig(input_features, output_features), rngs=nnx.Rngs(0))
-    tx = optax.adam(learning_rate=LR, b1=B1, b2=B2)
-
     train(
         model,
-        tx,
+        optimizer,
+        checkpointer,
         train_batches,
         val_batches,
         num_epochs=EPOCHS,
