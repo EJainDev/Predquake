@@ -62,15 +62,6 @@ def prepare_and_save_batches(
     centroids: jax.Array = jnp.load(CLUSTERING_MODEL_PATH)
     df: pl.DataFrame = pl.read_csv(
         PROCESSED_DATA_FILE_PATH,
-        schema={
-            "mag": pl.Float64,
-            "tsunami": pl.Float64,
-            "rms": pl.Float64,
-            "x": pl.Float64,
-            "y": pl.Float64,
-            "z": pl.Float64,
-            "depth": pl.Float64,
-        },
     )
 
     scaler: StandardScaler = joblib.load(SCALER_PATH)

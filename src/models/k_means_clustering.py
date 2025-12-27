@@ -76,18 +76,7 @@ if __name__ == "__main__":
     random.seed(42)
     print(f"Training on {jax.default_backend()}")
 
-    df = pl.read_csv(
-        PROCESSED_DATA_FILE_PATH,
-        schema={
-            "mag": pl.Float64,
-            "tsunami": pl.Float64,
-            "rms": pl.Float64,
-            "x": pl.Float64,
-            "y": pl.Float64,
-            "z": pl.Float64,
-            "depth": pl.Float64,
-        },
-    )
+    df = pl.read_csv(PROCESSED_DATA_FILE_PATH)
 
     df = df.slice(0, df.shape[0] - sum(VAL_TEST_SPLITS))
     pd_df = df.to_pandas()
