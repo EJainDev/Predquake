@@ -4,6 +4,8 @@ from src.config import *
 import jax.numpy as jnp
 from sklearn.preprocessing import StandardScaler
 import joblib
+import numpy as np
+import jax
 
 
 def update(df: pl.DataFrame) -> pl.DataFrame:
@@ -13,7 +15,9 @@ def update(df: pl.DataFrame) -> pl.DataFrame:
             (
                 df.slice(1)["time"].str.to_datetime()
                 - df.slice(0, df.shape[0] - 1)["time"].str.to_datetime()
-            ).alias("time_since_last")
+            )
+            .dt.total_seconds()
+            .alias("time_since_last")
         )
         .drop("time")
     )
@@ -29,7 +33,7 @@ if __name__ == "__main__":
 
     updated_df = pl.DataFrame()
     for cluster in range(centroids.shape[0]):
-        cluster_df = df.filter(indices == cluster)
+        cluster_df = df.filter(pl.Series(np.array(indices == cluster)))
         cluster_df = update(cluster_df)
         updated_df = pl.concat([updated_df, cluster_df], how="vertical")
 

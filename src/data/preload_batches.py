@@ -4,6 +4,7 @@ import joblib
 import polars as pl
 
 from functools import partial
+import numpy as np
 
 from sklearn.preprocessing import StandardScaler
 
@@ -35,9 +36,9 @@ def create_batch(
     start_idx: int,
     time_steps: int,
     batch_size: int,
-) -> tuple[jax.Array, jax.Array]:
+) -> tuple:
     indices: jax.Array = jnp.arange(batch_size)[:, None] + start_idx
-    batch_y: jax.Array = data_y[start_idx : start_idx + batch_size]
+    batch_y = data_y[start_idx : start_idx + batch_size].block_until_ready()
     return _sub_create_batch(indices, data_X, time_steps, batch_size), batch_y
 
 
@@ -46,7 +47,7 @@ def preload_batches(
 ):
     num_train_datapoints: int = train_X.shape[0] - time_steps
     num_train_batches: int = num_train_datapoints // batch_size
-    batches: list[tuple[jax.Array, jax.Array]] = [
+    batches: list[tuple] = [
         create_batch(train_X, train_y, i * batch_size, time_steps, batch_size)
         for i in range(num_train_batches)
     ]
@@ -83,7 +84,17 @@ def prepare_and_save_batches(
     val_xyz = jnp.array(val_df.select("x", "y", "z").to_numpy())
 
     # Pre-slice index arrays
-    train_index = index
+    train_index = assign_clusters(
+        train_scaled[
+            :,
+            [
+                train_df.columns.index("x"),
+                train_df.columns.index("y"),
+                train_df.columns.index("z"),
+            ],
+        ],
+        centroids,
+    )
     val_index = assign_clusters(
         val_scaled[
             :,
@@ -113,21 +124,27 @@ def prepare_and_save_batches(
         train_batches.extend(preload_batches(train_X, train_y, time_steps, batch_size))
         val_batches.extend(preload_batches(val_X, val_y, time_steps, batch_size))
 
+    train_scaled = None
+    val_scaled = None
+    train_xyz = None
+    val_xyz = None
+    train_df = None
+    val_df = None
+    df = None
+    index = None
+    centroids = None
+
     print(f"Total train batches: {len(train_batches)}")
+    print(
+        f"Train batches dimensions: {train_batches[0][0].shape} -> {train_batches[0][1].shape}"
+    )
     print(f"Total validation batches: {len(val_batches)}")
 
     # Save batches
     print("Saving batches...")
     batches_path = PROCESSED_DATA_DIR / "preloaded_batches.pkl"
     joblib.dump(
-        {
-            "train_batches": train_batches,
-            "val_batches": val_batches,
-            "time_steps": time_steps,
-            "batch_size": batch_size,
-            "input_features": df.shape[1],
-            "output_features": train_batches[0][1].shape[1] if train_batches else 3,
-        },
+        {"train_batches": train_batches, "val_batches": val_batches},
         batches_path,
     )
     print(f"Batches saved to {batches_path}")

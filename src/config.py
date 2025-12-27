@@ -19,5 +19,5 @@ CLUSTER_INDEX_PATH = ROOT_DIR / "models" / "k_means_cluster_indexes.npy"
 
 CHECKPOINT_DIR = ROOT_DIR / "models" / "lstm_checkpoints"
 
-TIME_STEPS = 64
+TIME_STEPS = 32
 BATCH_SIZE = 32

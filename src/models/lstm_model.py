@@ -20,7 +20,7 @@ jax.config.update(
     "jax_persistent_cache_enable_xla_caches", "xla_gpu_per_fusion_autotune_cache_dir"
 )
 
-VERSION = "v14"
+VERSION = "v15"
 LR = 0.001
 B1 = 0.9
 B2 = 0.999
@@ -181,7 +181,7 @@ if __name__ == "__main__":
         print("Please run: python -m src.data.preload_batches")
         exit(1)
 
-    model = Model(ModelConfig(7, 3), rngs=nnx.Rngs(0))
+    model = Model(ModelConfig(8, 3), rngs=nnx.Rngs(0))
     tx = optax.adam(learning_rate=LR, b1=B1, b2=B2)
 
     optimizer = nnx.ModelAndOptimizer(model, tx)
@@ -210,8 +210,6 @@ if __name__ == "__main__":
     batch_data = joblib.load(batches_path)
     train_batches = batch_data["train_batches"]
     val_batches = batch_data["val_batches"]
-    input_features = batch_data["input_features"]
-    output_features = batch_data["output_features"]
 
     print(
         f"Loaded {len(train_batches)} train batches and {len(val_batches)} validation batches"
