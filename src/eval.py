@@ -92,7 +92,7 @@ if __name__ == "__main__":
         .collect()
     )
 
-    scaler: StandardScaler = joblib.load(LOCATION_SCALER_PATH)
+    scaler: StandardScaler = joblib.load(SCALER_PATH)
     test_X_full = jnp.array(scaler.transform(df.to_numpy()))
     test_y_full = jnp.array(df[["x", "y", "z"]].to_numpy())
     test_index = assign_clusters(

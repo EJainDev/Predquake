@@ -64,7 +64,7 @@ def prepare_and_save_batches(
         PROCESSED_DATA_POST_CLUSTER_FILE_PATH,
     )
 
-    scaler: StandardScaler = joblib.load(LOCATION_SCALER_PATH)
+    scaler: StandardScaler = joblib.load(SCALER_PATH)
 
     print("Preprocessing data...")
     # Pre-compute commonly used values
