@@ -61,10 +61,10 @@ def prepare_and_save_batches(
     index: jax.Array = jnp.load(CLUSTER_INDEX_PATH)
     centroids: jax.Array = jnp.load(CLUSTERING_MODEL_PATH)
     df: pl.DataFrame = pl.read_csv(
-        PROCESSED_DATA_FILE_PATH,
+        PROCESSED_DATA_POST_CLUSTER_FILE_PATH,
     )
 
-    scaler: StandardScaler = joblib.load(SCALER_PATH)
+    scaler: StandardScaler = joblib.load(LOCATION_SCALER_PATH)
 
     print("Preprocessing data...")
     # Pre-compute commonly used values

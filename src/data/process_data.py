@@ -40,7 +40,7 @@ df = (
     .drop(["status", "type_property"])
     .unique()
     .drop_nulls()
-    .with_columns(pl.col("time").str.to_datetime().sort().dt.epoch("d").alias("time"))
+    .with_columns(pl.col("time").str.to_datetime().sort().alias("time"))
     .with_columns(
         pl.col("latitude").radians().alias("latitude"),
         pl.col("longitude").radians().alias("longitude"),
@@ -51,7 +51,7 @@ df = (
         pl.col("latitude").sin().alias("z"),
     )
     .filter((pl.col("time") > 0))
-    .drop(["latitude", "longitude", "time"])
+    .drop(["latitude", "longitude"])
     .collect()
 )
 

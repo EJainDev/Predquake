@@ -79,22 +79,15 @@ if __name__ == "__main__":
     df = pl.read_csv(PROCESSED_DATA_FILE_PATH)
 
     df = df.slice(0, df.shape[0] - sum(VAL_TEST_SPLITS))
-    pd_df = df.to_pandas()
 
-    if not os.path.exists(SCALER_PATH):
+    dataset = jnp.asarray(df.select("x", "y", "z").to_numpy())
+
+    if not os.path.exists(LOCATION_SCALER_PATH):
         scaler = StandardScaler()
-        scaler.fit(df.to_numpy())
-        joblib.dump(scaler, SCALER_PATH)
+        scaler.fit(dataset)
+        joblib.dump(scaler, LOCATION_SCALER_PATH)
     else:
-        scaler = joblib.load(SCALER_PATH)
-
-    dataset = jnp.asarray(
-        pl.from_pandas(
-            pd.DataFrame(scaler.transform(pd_df.to_numpy()), columns=pd_df.columns)
-        )
-        .select("x", "y", "z")
-        .to_numpy()
-    )
+        scaler = joblib.load(LOCATION_SCALER_PATH)
 
     previous_centroids = jnp.zeros((NUM_CLUSTERS, dataset.shape[1]))
     current_centroids = initialize_centroids(dataset, NUM_CLUSTERS)

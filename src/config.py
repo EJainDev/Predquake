@@ -8,7 +8,8 @@ PROCESSED_DATA_DIR = DATA_DIR / "processed"
 
 RAW_DATA_FILE_PATH = RAW_DATA_DIR / "Earthquakes_USGS.csv"
 PROCESSED_DATA_FILE_PATH = PROCESSED_DATA_DIR / "data.csv"
-SCALER_PATH = PROCESSED_DATA_DIR / "scaler.pkl"
+LOCATION_SCALER_PATH = PROCESSED_DATA_DIR / "location_scaler.pkl"
+PROCESSED_DATA_POST_CLUSTER_FILE_PATH = PROCESSED_DATA_DIR / "data_post_cluster.csv"
 
 VAL_TEST_SPLITS = (20_000, 10_000)  # Number of samples for validation and test sets
 
