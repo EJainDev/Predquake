@@ -9,7 +9,7 @@ import optax
 import orbax.checkpoint as ocp
 
 from flax import nnx
-from flax.nnx import LSTMCell, Linear, Sequential, leaky_relu
+from flax.nnx import LSTMCell, Linear, Sequential, leaky_relu, tanh
 
 from src.config import *
 
@@ -20,7 +20,7 @@ jax.config.update(
     "jax_persistent_cache_enable_xla_caches", "xla_gpu_per_fusion_autotune_cache_dir"
 )
 
-VERSION = "v12"
+VERSION = "v14"
 LR = 0.001
 B1 = 0.9
 B2 = 0.999
@@ -32,7 +32,7 @@ ckpt_dir = CHECKPOINT_DIR
 class ModelConfig:
     LSTM_HIDDEN_SIZE = 32
     LSTM_NUM_LAYERS = 1
-    HIDDEN_SIZES = [32, 16]
+    HIDDEN_SIZES = [64, 32, 16]
     INPUT_FEATURES = 0
     OUTPUT_FEATURES = 0
 
@@ -65,6 +65,7 @@ class Model(nnx.Module):
             config.OUTPUT_FEATURES,
             rngs=rngs,
         )
+        self.output_activation = tanh
 
     @nnx.jit
     def __call__(self, x: jax.Array) -> jax.Array:
@@ -81,7 +82,8 @@ class Model(nnx.Module):
         x = scan_fn(carry, x)
         x = x[1][:, -1, :]
         x = self.hidden_layers(x)
-        y: jax.Array = self.output_layer(x)
+        x = self.output_layer(x)
+        y = self.output_activation(x)
         return y
 
 
