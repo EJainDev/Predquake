@@ -7,7 +7,7 @@ echo "Running k-means clustering..."
 python -m src.models.k_means_clustering
 echo "Finished running k-means clustering"
 echo "Updating processed data with cluster assignments..."
-python -m src.data.update_processed_data_with_clusters
+python -m src.data.process_data_post_clustering
 echo "Finished updating processed data with cluster assignments"
 echo "Preloading batches..."
 python -m src.data.preload_batches
