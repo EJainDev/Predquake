@@ -22,7 +22,7 @@ jax.config.update(
     "jax_persistent_cache_enable_xla_caches", "xla_gpu_per_fusion_autotune_cache_dir"
 )
 
-VERSION = "v16"
+VERSION = "v18"
 LR = 0.001
 B1 = 0.9
 B2 = 0.999
@@ -32,7 +32,7 @@ ckpt_dir = CHECKPOINT_DIR
 
 
 class ModelConfig:
-    LSTM_HIDDEN_SIZE = 32
+    LSTM_HIDDEN_SIZE = 64
     LSTM_NUM_LAYERS = 1
     HIDDEN_SIZES = [64, 32, 16]
     INPUT_FEATURES = 0
@@ -53,6 +53,7 @@ class Model(nnx.Module):
             in_features = (
                 config.LSTM_HIDDEN_SIZE if i == 0 else config.HIDDEN_SIZES[i - 1]
             )
+            hidden_layers.append(nnx.Dropout(rate=0.25, rngs=rngs))
             hidden_layers.append(Linear(in_features, hs, rngs=rngs))
             hidden_layers.append(leaky_relu)
         if len(hidden_layers) == 0:
@@ -68,6 +69,7 @@ class Model(nnx.Module):
             rngs=rngs,
         )
         self.output_activation = tanh
+        self.dropout = nnx.Dropout(rate=0.25, rngs=rngs)
 
     @nnx.jit
     def __call__(self, x: jax.Array) -> jax.Array:
@@ -84,6 +86,7 @@ class Model(nnx.Module):
         x = scan_fn(carry, x)
         x = x[1][:, -1, :]
         x = self.hidden_layers(x)
+        x = self.dropout(x)
         x = self.output_layer(x)
         y = self.output_activation(x)
         return y
@@ -133,9 +136,14 @@ def train(
     for epoch in range(num_epochs):
         train_loss: float = 0.0
         model.train()
-        for batch_X, batch_y in train_dataset:
+        for i, (batch_X, batch_y) in enumerate(train_dataset):
             loss = train_step(optimizer, batch_X, batch_y)
+            if jnp.isnan(loss):
+                print(f"NaN loss encountered at epoch {epoch}, batch {i}")
+                raise ValueError("NaN loss encountered during training")
             train_loss += loss.item()
+            if (i + 1) % 100 == 0:
+                print(f"Epoch {epoch}, Batch {i+1}, Loss: {loss.item()}")
 
         train_loss /= len(train_dataset)
 
