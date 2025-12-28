@@ -22,8 +22,8 @@ jax.config.update(
     "jax_persistent_cache_enable_xla_caches", "xla_gpu_per_fusion_autotune_cache_dir"
 )
 
-VERSION = "v18"
-LR = 0.001
+VERSION = "v19"
+LR = 0.0001
 B1 = 0.9
 B2 = 0.999
 EPOCHS = 50
@@ -53,7 +53,7 @@ class Model(nnx.Module):
             in_features = (
                 config.LSTM_HIDDEN_SIZE if i == 0 else config.HIDDEN_SIZES[i - 1]
             )
-            hidden_layers.append(nnx.Dropout(rate=0.25, rngs=rngs))
+            # hidden_layers.append(nnx.Dropout(rate=0.25, rngs=rngs))
             hidden_layers.append(Linear(in_features, hs, rngs=rngs))
             hidden_layers.append(leaky_relu)
         if len(hidden_layers) == 0:
@@ -69,9 +69,9 @@ class Model(nnx.Module):
             rngs=rngs,
         )
         self.output_activation = tanh
-        self.dropout = nnx.Dropout(rate=0.25, rngs=rngs)
+        # self.dropout = nnx.Dropout(rate=0.25, rngs=rngs)
 
-    @nnx.jit
+    # @nnx.jit
     def __call__(self, x: jax.Array) -> jax.Array:
         batch_size, seq_len, num_features = x.shape
         carry: tuple[jax.Array, jax.Array] = self.lstm_cell.initialize_carry(
@@ -86,18 +86,18 @@ class Model(nnx.Module):
         x = scan_fn(carry, x)
         x = x[1][:, -1, :]
         x = self.hidden_layers(x)
-        x = self.dropout(x)
+        # x = self.dropout(x)
         x = self.output_layer(x)
         y = self.output_activation(x)
         return y
 
 
-@nnx.jit(donate_argnames=("model"))
+# @nnx.jit(donate_argnames=("model"))
 def loss_fn(model: Model, inputs: jax.Array, targets: jax.Array) -> jax.Array:
     return jnp.mean((model(inputs) - targets) ** 2)
 
 
-@nnx.jit(donate_argnames=("optimizer"))
+# @nnx.jit(donate_argnames=("optimizer"))
 def train_step(
     optimizer: nnx.ModelAndOptimizer, batch_X: jax.Array, batch_y: jax.Array
 ) -> jax.Array:
@@ -141,6 +141,9 @@ def train(
             if jnp.isnan(loss):
                 _, state = nnx.split(model)
                 checkpointer.save(ckpt_dir / f"state_{VERSION}", state, force=True)
+                sleep(
+                    120
+                )  # To ensure that the checkpoint is saved before the program exits
                 print(f"NaN loss encountered at epoch {epoch}, batch {i}")
                 raise ValueError("NaN loss encountered during training")
             train_loss += loss.item()

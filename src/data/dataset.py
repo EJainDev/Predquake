@@ -76,6 +76,8 @@ class Dataset:
             self.datas_y.append(data_y[mask])
         self.cluster = 0
         self.shuffle = shuffle
+        # Seeded NumPy RNG for deterministic shuffling
+        self.np_rng = np.random.default_rng(0)
         self.B = (
             jax.random.normal(jax.random.PRNGKey(32), (input_dim, output_dim // 2))
             * FOURIER_FEATURES_SCALE
@@ -106,7 +108,7 @@ class Dataset:
 
         # Shuffle pairs if needed
         if self.shuffle:
-            np.random.shuffle(pairs)
+            self.np_rng.shuffle(pairs)
 
         self.pairs = pairs
         self.pair_idx = 0
