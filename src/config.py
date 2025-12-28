@@ -21,3 +21,4 @@ CHECKPOINT_DIR = ROOT_DIR / "models" / "lstm_checkpoints"
 
 TIME_STEPS = 32
 BATCH_SIZE = 32
+INPUT_FEATURES = 64

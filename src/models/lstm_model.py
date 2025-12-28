@@ -149,7 +149,7 @@ def train(
 
 
 if __name__ == "__main__":
-    model = Model(ModelConfig(32, 3), rngs=nnx.Rngs(0))
+    model = Model(ModelConfig(INPUT_FEATURES, 3), rngs=nnx.Rngs(0))
     tx = optax.adam(learning_rate=LR, b1=B1, b2=B2)
 
     optimizer = nnx.ModelAndOptimizer(model, tx)

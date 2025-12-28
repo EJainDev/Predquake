@@ -7,7 +7,7 @@ from src.models.k_means_clustering import assign_clusters
 from functools import partial
 
 FOURIER_FEATURES_SCALE = 1.0
-output_dim = 64
+output_dim = INPUT_FEATURES
 input_dim = 8
 
 
