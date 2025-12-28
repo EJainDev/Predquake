@@ -71,7 +71,7 @@ class Model(nnx.Module):
         self.output_activation = tanh
         # self.dropout = nnx.Dropout(rate=0.25, rngs=rngs)
 
-    # @nnx.jit
+    @nnx.jit
     def __call__(self, x: jax.Array) -> jax.Array:
         batch_size, seq_len, num_features = x.shape
         carry: tuple[jax.Array, jax.Array] = self.lstm_cell.initialize_carry(
@@ -92,12 +92,12 @@ class Model(nnx.Module):
         return y
 
 
-# @nnx.jit(donate_argnames=("model"))
+@nnx.jit(donate_argnames=("model"))
 def loss_fn(model: Model, inputs: jax.Array, targets: jax.Array) -> jax.Array:
     return jnp.mean((model(inputs) - targets) ** 2)
 
 
-# @nnx.jit(donate_argnames=("optimizer"))
+@nnx.jit(donate_argnames=("optimizer"))
 def train_step(
     optimizer: nnx.ModelAndOptimizer, batch_X: jax.Array, batch_y: jax.Array
 ) -> jax.Array:
