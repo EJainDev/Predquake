@@ -16,7 +16,7 @@ def update(df: pl.DataFrame) -> pl.DataFrame:
                 df.slice(1)["time"].str.to_datetime()
                 - df.slice(0, df.shape[0] - 1)["time"].str.to_datetime()
             )
-            .dt.total_seconds()
+            .dt.total_minutes(fractional=True)
             .alias("time_since_last")
         )
         .drop("time")
