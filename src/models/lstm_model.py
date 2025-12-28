@@ -22,7 +22,7 @@ jax.config.update(
     "jax_persistent_cache_enable_xla_caches", "xla_gpu_per_fusion_autotune_cache_dir"
 )
 
-VERSION = "v24"
+VERSION = "v25"
 LR = 0.001
 B1 = 0.9
 B2 = 0.999
@@ -32,9 +32,9 @@ ckpt_dir = CHECKPOINT_DIR
 
 
 class ModelConfig:
-    LSTM_HIDDEN_SIZE = 32
+    LSTM_HIDDEN_SIZE = 64
     LSTM_NUM_LAYERS = 1
-    HIDDEN_SIZES = [64, 32, 16]
+    HIDDEN_SIZES = [64, 64, 32, 16]
     INPUT_FEATURES = 0
     OUTPUT_FEATURES = 0
 
@@ -46,14 +46,17 @@ class ModelConfig:
 class Model(nnx.Module):
     def __init__(self, config: ModelConfig, rngs: nnx.Rngs):
         self.lstm_cell = LSTMCell(
-            config.INPUT_FEATURES, config.LSTM_HIDDEN_SIZE, rngs=rngs
+            config.INPUT_FEATURES,
+            config.LSTM_HIDDEN_SIZE,
+            rngs=rngs,
+            dtype=jnp.bfloat16,
         )
         hidden_layers: list = [leaky_relu]
         for i, hs in enumerate(config.HIDDEN_SIZES):
             in_features = (
                 config.LSTM_HIDDEN_SIZE if i == 0 else config.HIDDEN_SIZES[i - 1]
             )
-            hidden_layers.append(Linear(in_features, hs, rngs=rngs))
+            hidden_layers.append(Linear(in_features, hs, rngs=rngs, dtype=jnp.bfloat16))
             hidden_layers.append(leaky_relu)
         if len(hidden_layers) == 0:
             hidden_layers.append(lambda x: x)
@@ -66,6 +69,7 @@ class Model(nnx.Module):
             ),
             config.OUTPUT_FEATURES,
             rngs=rngs,
+            dtype=jnp.bfloat16,
         )
         self.output_activation = tanh
 
