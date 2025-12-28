@@ -22,7 +22,7 @@ jax.config.update(
     "jax_persistent_cache_enable_xla_caches", "xla_gpu_per_fusion_autotune_cache_dir"
 )
 
-VERSION = "v16"
+VERSION = "v21"
 LR = 0.001
 B1 = 0.9
 B2 = 0.999
@@ -32,7 +32,7 @@ ckpt_dir = CHECKPOINT_DIR
 
 
 class ModelConfig:
-    LSTM_HIDDEN_SIZE = 32
+    LSTM_HIDDEN_SIZE = 64
     LSTM_NUM_LAYERS = 1
     HIDDEN_SIZES = [64, 32, 16]
     INPUT_FEATURES = 0
@@ -133,9 +133,11 @@ def train(
     for epoch in range(num_epochs):
         train_loss: float = 0.0
         model.train()
-        for batch_X, batch_y in train_dataset:
+        for i, (batch_X, batch_y) in enumerate(train_dataset):
             loss = train_step(optimizer, batch_X, batch_y)
             train_loss += loss.item()
+            if (i + 1) % 100 == 0:
+                print(f"Epoch {epoch}, Step {i+1}, Batch Loss: {loss.item()}")
 
         train_loss /= len(train_dataset)
 
