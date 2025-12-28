@@ -22,7 +22,7 @@ jax.config.update(
     "jax_persistent_cache_enable_xla_caches", "xla_gpu_per_fusion_autotune_cache_dir"
 )
 
-VERSION = "v17"
+VERSION = "v18"
 LR = 0.001
 B1 = 0.9
 B2 = 0.999
@@ -139,6 +139,8 @@ def train(
         for i, (batch_X, batch_y) in enumerate(train_dataset):
             loss = train_step(optimizer, batch_X, batch_y)
             if jnp.isnan(loss):
+                _, state = nnx.split(model)
+                checkpointer.save(ckpt_dir / f"state_{VERSION}", state, force=True)
                 print(f"NaN loss encountered at epoch {epoch}, batch {i}")
                 raise ValueError("NaN loss encountered during training")
             train_loss += loss.item()
