@@ -18,8 +18,21 @@ jax.config.update(
     "jax_persistent_cache_enable_xla_caches", "xla_gpu_per_fusion_autotune_cache_dir"
 )
 
+rng_key = jax.random.PRNGKey(0)
 
-@partial(jax.jit, static_argnames=("time_steps", "batch_size"))
+
+def _fourier(batch_X: jax.Array) -> jax.Array:
+    FOURIER_FEATURES_SCALE = 1.0
+    output_dim = 32
+    input_dim = batch_X.shape[-1]
+    B = jax.random.normal(rng_key, (input_dim, output_dim)) * FOURIER_FEATURES_SCALE
+    batch_X_proj = 2 * jnp.pi * batch_X @ B
+    fourier_features = jnp.concatenate(
+        [jnp.sin(batch_X_proj), jnp.cos(batch_X_proj)], axis=-1
+    )
+    return fourier_features
+
+
 def _sub_create_batch(
     indices: jax.Array, data_X: jax.Array, time_steps: int, batch_size: int
 ) -> jax.Array:
@@ -27,7 +40,7 @@ def _sub_create_batch(
     batch_X: jax.Array = jnp.take(data_X, indices.ravel(), axis=0).reshape(
         batch_size, time_steps, -1
     )
-    return batch_X
+    return _fourier(batch_X)
 
 
 def create_batch(

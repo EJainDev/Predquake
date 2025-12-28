@@ -7,11 +7,13 @@ import joblib
 import numpy as np
 import optax
 import orbax.checkpoint as ocp
+import polars as pl
 
 from flax import nnx
 from flax.nnx import LSTMCell, Linear, Sequential, leaky_relu, tanh
 
 from src.config import *
+from src.data.dataset import Dataset, PrefetchedDataset
 
 jax.config.update("jax_compilation_cache_dir", "/tmp/jax_cache")
 jax.config.update("jax_persistent_cache_min_entry_size_bytes", -1)
@@ -20,7 +22,7 @@ jax.config.update(
     "jax_persistent_cache_enable_xla_caches", "xla_gpu_per_fusion_autotune_cache_dir"
 )
 
-VERSION = "v15"
+VERSION = "v16"
 LR = 0.001
 B1 = 0.9
 B2 = 0.999
@@ -87,36 +89,6 @@ class Model(nnx.Module):
         return y
 
 
-def create_batch(
-    data_X: jax.Array,
-    data_y: jax.Array,
-    start_idx: int,
-    time_steps: int,
-    batch_size: int,
-) -> tuple[jax.Array, jax.Array]:
-    # Use vectorized indexing instead of list comprehension
-    indices: jax.Array = jnp.arange(batch_size)[:, None] + start_idx
-    indices = jnp.arange(time_steps)[None, :] + indices
-    batch_X: jax.Array = jnp.take(data_X, indices.ravel(), axis=0).reshape(
-        batch_size, time_steps, -1
-    )
-    batch_y: jax.Array = data_y[start_idx : start_idx + batch_size]
-    return batch_X, batch_y
-
-
-def preload_batches(
-    train_X: jax.Array, train_y: jax.Array, time_steps: int, batch_size: int
-):
-    num_train_datapoints: int = train_X.shape[0] - time_steps
-    num_train_batches: int = num_train_datapoints // batch_size
-    batches: list[tuple[jax.Array, jax.Array]] = []
-    for i in range(num_train_batches):
-        batches.append(
-            create_batch(train_X, train_y, i * batch_size, time_steps, batch_size)
-        )
-    return batches
-
-
 @nnx.jit(donate_argnames=("model"))
 def loss_fn(model: Model, inputs: jax.Array, targets: jax.Array) -> jax.Array:
     return jnp.mean((model(inputs) - targets) ** 2)
@@ -125,7 +97,7 @@ def loss_fn(model: Model, inputs: jax.Array, targets: jax.Array) -> jax.Array:
 @nnx.jit(donate_argnames=("optimizer"))
 def train_step(
     optimizer: nnx.ModelAndOptimizer, batch_X: jax.Array, batch_y: jax.Array
-) -> float:
+) -> jax.Array:
     def loss_and_grads(model: Model) -> jax.Array:
         return loss_fn(model, batch_X, batch_y)
 
@@ -141,12 +113,12 @@ def _validation_step(model: Model, batch_X: jax.Array, batch_y: jax.Array) -> ja
     return loss
 
 
-def validate(model: Model, val_batches: list[tuple[jax.Array, jax.Array]]) -> float:
+def validate(model: Model, val_dataset) -> float:
     val_loss: float = 0.0
     model.eval()
-    for batch_X, batch_y in val_batches:
+    for batch_X, batch_y in val_dataset:
         val_loss += _validation_step(model, batch_X, batch_y).item(0)
-    val_loss /= len(val_batches)
+    val_loss /= len(val_dataset)
     return val_loss
 
 
@@ -154,19 +126,20 @@ def train(
     model: Model,
     optimizer: nnx.ModelAndOptimizer,
     checkpointer: ocp.StandardCheckpointer,
-    train_batches: list[tuple[jax.Array, jax.Array]],
-    val_batches: list[tuple[jax.Array, jax.Array]],
+    train_dataset: Dataset,
+    val_dataset: Dataset,
     num_epochs: int,
 ):
     for epoch in range(num_epochs):
         train_loss: float = 0.0
         model.train()
-        for batch_X, batch_y in train_batches:
+        for batch_X, batch_y in train_dataset:
             loss = train_step(optimizer, batch_X, batch_y)
-            train_loss += loss
-        train_loss /= len(train_batches)
+            train_loss += loss.item()
 
-        val_loss: float = validate(model, val_batches)
+        train_loss /= len(train_dataset)
+
+        val_loss: float = validate(model, val_dataset)
         print(f"Epoch {epoch}, Train Loss: {train_loss}, Validation Loss: {val_loss}")
 
         _, state = nnx.split(model)
@@ -174,14 +147,7 @@ def train(
 
 
 if __name__ == "__main__":
-    batches_path = PROCESSED_DATA_DIR / "preloaded_batches.pkl"
-
-    if not batches_path.exists():
-        print(f"Precomputed batches not found at {batches_path}")
-        print("Please run: python -m src.data.preload_batches")
-        exit(1)
-
-    model = Model(ModelConfig(8, 3), rngs=nnx.Rngs(0))
+    model = Model(ModelConfig(32, 3), rngs=nnx.Rngs(0))
     tx = optax.adam(learning_rate=LR, b1=B1, b2=B2)
 
     optimizer = nnx.ModelAndOptimizer(model, tx)
@@ -207,20 +173,41 @@ if __name__ == "__main__":
         optimizer = nnx.ModelAndOptimizer(model, tx)
         print("Loaded model from disk")
 
-    batch_data = joblib.load(batches_path)
-    train_batches = batch_data["train_batches"]
-    val_batches = batch_data["val_batches"]
+    df = pl.read_csv(PROCESSED_DATA_POST_CLUSTER_FILE_PATH)
+    train_X = df.slice(0, df.shape[0] - sum(VAL_TEST_SPLITS) - 1)
+    train_y = jnp.array(
+        df.slice(1, df.shape[0] - sum(VAL_TEST_SPLITS) - 1)
+        .select(["x", "y", "z"])
+        .to_numpy()
+    )
+    val_X = df.slice(
+        df.shape[0] - sum(VAL_TEST_SPLITS),
+        VAL_TEST_SPLITS[0] - 1,
+    )
+    val_y = jnp.array(
+        df.slice(
+            df.shape[0] - sum(VAL_TEST_SPLITS) + 1,
+            VAL_TEST_SPLITS[0] - 1,
+        )
+        .select(["x", "y", "z"])
+        .to_numpy()
+    )
+    PREFETCH_SIZE = 256
+    centroids: jax.Array = jnp.load(CLUSTERING_MODEL_PATH)
+    train_dataset = Dataset(train_X, train_y, centroids, shuffle=True)
+    val_dataset = Dataset(val_X, val_y, centroids, shuffle=False)
+    train_dataset = PrefetchedDataset(train_dataset, PREFETCH_SIZE)
 
     print(
-        f"Loaded {len(train_batches)} train batches and {len(val_batches)} validation batches"
+        f"Loaded {len(train_dataset)} train batches and {len(val_dataset)} validation batches"
     )
 
     train(
         model,
         optimizer,
         checkpointer,
-        train_batches,
-        val_batches,
+        train_dataset,
+        val_dataset,
         num_epochs=EPOCHS,
     )
 
