@@ -77,7 +77,7 @@ class Dataset:
         self.cluster = 0
         self.shuffle = shuffle
         self.B = (
-            jax.random.normal(jax.random.key(32), (input_dim, output_dim // 2))
+            jax.random.normal(jax.random.PRNGKey(32), (input_dim, output_dim // 2))
             * FOURIER_FEATURES_SCALE
         )
 
@@ -97,25 +97,33 @@ class Dataset:
         )
 
     def __iter__(self):
-        self.cluster = 0
-        self.sequences = [
-            np.arange((x.shape[0] - TIME_STEPS) // BATCH_SIZE) for x in self.datas_X
-        ]
+        # Generate all (cluster, batch_idx) pairs
+        pairs = []
+        for cluster_id in range(len(self.datas_X)):
+            num_batches = (self.datas_X[cluster_id].shape[0] - TIME_STEPS) // BATCH_SIZE
+            for batch_idx in range(num_batches):
+                pairs.append((cluster_id, batch_idx))
+
+        # Shuffle pairs if needed
         if self.shuffle:
-            for sequence in self.sequences:
-                np.random.shuffle(sequence)
-        self.current_idx = 0
+            np.random.shuffle(pairs)
+
+        self.pairs = pairs
+        self.pair_idx = 0
         return self
 
     def __next__(self) -> tuple[jax.Array, jax.Array]:
-        while self.current_idx >= len(self.sequences[self.cluster]):
-            self.cluster += 1
-            self.current_idx = 0
-            if self.cluster >= len(self.datas_X):
-                raise StopIteration
-        idx = self.sequences[self.cluster][self.current_idx]
-        self.current_idx += 1
-        return self[idx]
+        if self.pair_idx >= len(self.pairs):
+            raise StopIteration
+        cluster_id, batch_idx = self.pairs[self.pair_idx]
+        self.pair_idx += 1
+
+        self.cluster = cluster_id
+        return self[batch_idx]
+
+    def _fast_forward(self, n: int) -> None:
+        """Simulate calling __next__ n times without generating batches."""
+        self.pair_idx = min(self.pair_idx + n, len(self.pairs))
 
 
 from concurrent.futures import ThreadPoolExecutor
